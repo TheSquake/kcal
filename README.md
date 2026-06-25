@@ -80,3 +80,4 @@ UID prefix matching — only the first few characters of the event UID are neede
 ## License
 
 MIT
+# kcal
