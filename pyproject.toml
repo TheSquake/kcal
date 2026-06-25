@@ -1,6 +1,6 @@
 [project]
 name = "kcal-cli"
-version = "0.1.0"
+version = "0.2.0"
 description = "Non-interactive CLI for managing local iCalendar (.ics) files"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -26,5 +26,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["."]
-include = ["kcal.py"]
+only-include = ["kcal.py"]
+
+[tool.hatch.build.targets.sdist]
+only-include = ["kcal.py", "README.md", "LICENSE", "pyproject.toml"]

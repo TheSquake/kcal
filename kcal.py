@@ -41,6 +41,29 @@ def parse_date(s: str) -> date:
     raise ValueError(f"Cannot parse date: {s!r}")
 
 
+def build_rrule(args):
+    if not args.repeat:
+        return None
+    rule = {"freq": args.repeat.upper()}
+    if hasattr(args, "interval") and args.interval:
+        rule["interval"] = int(args.interval)
+    if hasattr(args, "count") and args.count:
+        rule["count"] = int(args.count)
+    if hasattr(args, "until") and args.until:
+        rule["until"] = parse_dt(args.until) if " " in args.until else parse_date(args.until)
+    if hasattr(args, "byday") and args.byday:
+        rule["byday"] = args.byday.upper().split(",")
+    return rule
+
+
+def apply_rrule(event, args):
+    rrule = build_rrule(args)
+    if rrule:
+        if "rrule" in event:
+            del event["rrule"]
+        event.add("rrule", rrule)
+
+
 def cmd_add(args):
     cal = load_calendar(args.file)
     event = Event()
@@ -62,6 +85,7 @@ def cmd_add(args):
         event.add("description", args.description)
     if args.location:
         event.add("location", args.location)
+    apply_rrule(event, args)
     cal.add_component(event)
     save_calendar(cal, args.file)
     print(f"Added: {args.summary} (uid: {event['uid']})")
@@ -119,7 +143,12 @@ def cmd_list(args):
             start = dt.strftime("%Y-%m-%d %H:%M")
             dtend = e.get("dtend")
             end = " - " + dtend.dt.strftime("%H:%M") if dtend else ""
-        print(f"  {start}{end}  {summary}  [uid: {uid[:8]}...]")
+        rrule = e.get("rrule")
+        repeat = ""
+        if rrule:
+            freq = rrule.get("freq", [""])[0].lower() if isinstance(rrule.get("freq"), list) else str(rrule.get("freq", "")).lower()
+            repeat = f" [{freq}]"
+        print(f"  {start}{end}  {summary}{repeat}  [uid: {uid[:8]}...]")
 
 
 def cmd_delete(args):
@@ -177,6 +206,11 @@ def cmd_edit(args):
             if args.end:
                 del component["dtend"]
                 component.add("dtend", parse_dt(args.end))
+        if args.repeat:
+            apply_rrule(component, args)
+        if args.no_repeat:
+            if "rrule" in component:
+                del component["rrule"]
         if args.description:
             if "description" in component:
                 del component["description"]
@@ -205,6 +239,11 @@ def main():
     p_add.add_argument("--start", "-s", required=True, help="Start date/time (YYYY-MM-DD HH:MM, or YYYY-MM-DD for all-day)")
     p_add.add_argument("--end", "-e", help="End date/time (optional for all-day events)")
     p_add.add_argument("--allday", action="store_true", help="Create an all-day event (uses DATE values)")
+    p_add.add_argument("--repeat", choices=["daily", "weekly", "monthly", "yearly"], help="Recurrence frequency")
+    p_add.add_argument("--interval", type=int, help="Repeat every N periods (default: 1)")
+    p_add.add_argument("--count", type=int, help="Number of occurrences")
+    p_add.add_argument("--until", help="Recurrence end date (YYYY-MM-DD)")
+    p_add.add_argument("--byday", help="Days for weekly recurrence (e.g. MO,WE,FR)")
     p_add.add_argument("--description", "-d", help="Description")
     p_add.add_argument("--location", "-l", help="Location")
 
@@ -220,6 +259,12 @@ def main():
     p_edit.add_argument("--start", "-s", help="New start date/time")
     p_edit.add_argument("--end", "-e", help="New end date/time")
     p_edit.add_argument("--allday", action="store_true", help="Convert to an all-day event")
+    p_edit.add_argument("--repeat", choices=["daily", "weekly", "monthly", "yearly"], help="Set/change recurrence")
+    p_edit.add_argument("--interval", type=int, help="Repeat every N periods")
+    p_edit.add_argument("--count", type=int, help="Number of occurrences")
+    p_edit.add_argument("--until", help="Recurrence end date (YYYY-MM-DD)")
+    p_edit.add_argument("--byday", help="Days for weekly recurrence (e.g. MO,WE,FR)")
+    p_edit.add_argument("--no-repeat", action="store_true", help="Remove recurrence rule")
     p_edit.add_argument("--description", "-d", help="New description")
     p_edit.add_argument("--location", "-l", help="New location")
 
